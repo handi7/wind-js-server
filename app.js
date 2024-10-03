@@ -11,12 +11,7 @@ var port = process.env.PORT || 7000;
 var baseDir = "http://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl";
 
 // cors config
-var whitelist = [
-  "http://localhost:63342",
-  "http://localhost:3000",
-  "http://localhost:4000",
-  "http://danwild.github.io",
-];
+var whitelist = ["https://dev.titip.io", "http://localhost:3000", "http://localhost:4000"];
 
 var corsOptions = {
   origin: function (origin, callback) {
