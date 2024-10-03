@@ -177,8 +177,8 @@ function getGribData(targetMoment) {
 
         console.log("response " + response.statusCode + " | " + stamp);
 
-        if (response.statusCode != 200) {
-          //   runQuery(moment(targetMoment).subtract(6, "hours"));
+        if (response.statusCode !== 200) {
+          runQuery(moment(targetMoment).subtract(6, "hours"));
         } else {
           // don't rewrite stamps
           if (!checkPath("json-data/" + stamp + ".json", false)) {
