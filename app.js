@@ -9,6 +9,7 @@ var cors = require("cors");
 var app = express();
 var port = process.env.PORT || 7000;
 var baseDir = "http://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl";
+var wavesUrl = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfswave.pl";
 
 // cors config
 var whitelist = ["https://dev.titip.io", "http://localhost:3000", "http://localhost:4000"];
@@ -34,7 +35,7 @@ app.get("/alive", cors(corsOptions), function (req, res) {
   res.send("wind-js-server is alive" + moment().utc());
 });
 
-app.get("/latest", cors(corsOptions), function (req, res) {
+app.get("/wind/latest", cors(corsOptions), function (req, res) {
   /**
    * Find and return the latest available 6 hourly pre-parsed JSON data
    *
@@ -43,7 +44,10 @@ app.get("/latest", cors(corsOptions), function (req, res) {
   function sendLatest(targetMoment) {
     var stamp =
       moment(targetMoment).format("YYYYMMDD") + roundHours(moment(targetMoment).hour(), 6);
-    var fileName = __dirname + "/json-data/" + stamp + ".json";
+    var fileName = __dirname + "/json-data/wind/" + stamp + ".json";
+
+    console.log("GET /latest");
+    console.log("filename >>>>>", fileName);
 
     res.setHeader("Content-Type", "application/json");
     res.sendFile(fileName, {}, function (err) {
@@ -57,49 +61,75 @@ app.get("/latest", cors(corsOptions), function (req, res) {
   sendLatest(moment().utc());
 });
 
-app.get("/nearest", cors(corsOptions), function (req, res, next) {
-  var time = req.query.timeIso;
-  var limit = req.query.searchLimit;
-  var searchForwards = false;
+// app.get("/wave/latest", cors(corsOptions), function (req, res) {
+//   /**
+//    * Find and return the latest available 6 hourly pre-parsed JSON data
+//    *
+//    * @param targetMoment {Object} UTC moment
+//    */
+//   function sendLatest(targetMoment) {
+//     var stamp =
+//       moment(targetMoment).format("YYYYMMDD") + roundHours(moment(targetMoment).hour(), 6);
+//     var fileName = __dirname + "/json-data/wave/" + stamp + ".json";
 
-  /**
-   * Find and return the nearest available 6 hourly pre-parsed JSON data
-   * If limit provided, searches backwards to limit, then forwards to limit before failing.
-   *
-   * @param targetMoment {Object} UTC moment
-   */
-  function sendNearestTo(targetMoment) {
-    if (limit && Math.abs(moment.utc(time).diff(targetMoment, "days")) >= limit) {
-      if (!searchForwards) {
-        searchForwards = true;
-        sendNearestTo(moment(targetMoment).add(limit, "days"));
-        return;
-      } else {
-        return next(new Error("No data within searchLimit"));
-      }
-    }
+//     console.log("GET /latest");
+//     console.log("filename >>>>>", fileName);
 
-    var stamp =
-      moment(targetMoment).format("YYYYMMDD") + roundHours(moment(targetMoment).hour(), 6);
-    var fileName = __dirname + "/json-data/" + stamp + ".json";
+//     res.setHeader("Content-Type", "application/json");
+//     res.sendFile(fileName, {}, function (err) {
+//       if (err) {
+//         console.log(stamp + " doesnt exist yet, trying previous interval..");
+//         sendLatest(moment(targetMoment).subtract(6, "hours"));
+//       }
+//     });
+//   }
 
-    res.setHeader("Content-Type", "application/json");
-    res.sendFile(fileName, {}, function (err) {
-      if (err) {
-        var nextTarget = searchForwards
-          ? moment(targetMoment).add(6, "hours")
-          : moment(targetMoment).subtract(6, "hours");
-        sendNearestTo(nextTarget);
-      }
-    });
-  }
+//   sendLatest(moment().utc());
+// });
 
-  if (time && moment(time).isValid()) {
-    sendNearestTo(moment.utc(time));
-  } else {
-    return next(new Error("Invalid params, expecting: timeIso=ISO_TIME_STRING"));
-  }
-});
+// app.get("/nearest", cors(corsOptions), function (req, res, next) {
+//   var time = req.query.timeIso;
+//   var limit = req.query.searchLimit;
+//   var searchForwards = false;
+
+//   /**
+//    * Find and return the nearest available 6 hourly pre-parsed JSON data
+//    * If limit provided, searches backwards to limit, then forwards to limit before failing.
+//    *
+//    * @param targetMoment {Object} UTC moment
+//    */
+//   function sendNearestTo(targetMoment) {
+//     if (limit && Math.abs(moment.utc(time).diff(targetMoment, "days")) >= limit) {
+//       if (!searchForwards) {
+//         searchForwards = true;
+//         sendNearestTo(moment(targetMoment).add(limit, "days"));
+//         return;
+//       } else {
+//         return next(new Error("No data within searchLimit"));
+//       }
+//     }
+
+//     var stamp =
+//       moment(targetMoment).format("YYYYMMDD") + roundHours(moment(targetMoment).hour(), 6);
+//     var fileName = __dirname + "/json-data/" + stamp + ".json";
+
+//     res.setHeader("Content-Type", "application/json");
+//     res.sendFile(fileName, {}, function (err) {
+//       if (err) {
+//         var nextTarget = searchForwards
+//           ? moment(targetMoment).add(6, "hours")
+//           : moment(targetMoment).subtract(6, "hours");
+//         sendNearestTo(nextTarget);
+//       }
+//     });
+//   }
+
+//   if (time && moment(time).isValid()) {
+//     sendNearestTo(moment.utc(time));
+//   } else {
+//     return next(new Error("Invalid params, expecting: timeIso=ISO_TIME_STRING"));
+//   }
+// });
 
 /**
  *
@@ -107,17 +137,19 @@ app.get("/nearest", cors(corsOptions), function (req, res, next) {
  *
  */
 setInterval(function () {
-  run(moment.utc());
+  // run(moment.utc());
+  run(moment.utc(), "wind");
+  run(moment.utc(), "wave");
 }, 900000);
 
 /**
  *
  * @param targetMoment {Object} moment to check for new data
  */
-function run(targetMoment) {
-  getGribData(targetMoment).then(function (response) {
+function run(targetMoment, type) {
+  getGribData(targetMoment, type).then(function (response) {
     if (response.stamp) {
-      convertGribToJson(response.stamp, response.targetMoment);
+      convertGribToJson(response.stamp, response.targetMoment, type);
     }
   });
 }
@@ -128,12 +160,12 @@ function run(targetMoment) {
  *
  * @returns {*|promise}
  */
-function getGribData(targetMoment) {
+function getGribData(targetMoment, type) {
+  const types = ["wind", "wave"];
   var deferred = Q.defer();
+  if (!types.includes(type)) return deferred.reject("type is required");
 
   function runQuery(targetMoment) {
-    console.log("file", "gfs.t" + roundHours(moment(targetMoment).hour(), 6) + "z.pgrb2.1p00.f000");
-
     // only go 2 weeks deep
     if (moment.utc().diff(targetMoment, "days") > 30) {
       console.log("hit limit, harvest complete or there is a big gap in data..");
@@ -142,33 +174,54 @@ function getGribData(targetMoment) {
 
     var stamp =
       moment(targetMoment).format("YYYYMMDD") + roundHours(moment(targetMoment).hour(), 6);
-    request
-      .get({
-        url: baseDir,
+    let reqOpt = {
+      url: baseDir,
+      qs: {
+        file: "gfs.t" + roundHours(moment(targetMoment).hour(), 6) + "z.pgrb2.1p00.f000",
+        lev_10_m_above_ground: "on",
+        lev_surface: "on",
+        var_TMP: "on",
+        var_UGRD: "on",
+        var_VGRD: "on",
+        leftlon: 0,
+        rightlon: 360,
+        toplat: 90,
+        bottomlat: -90,
+        dir: "/gfs." + `${stamp.slice(0, 8)}/${stamp.slice(-2)}` + "/atmos",
+      },
+    };
+
+    if (type === "wave") {
+      reqOpt = {
+        url: wavesUrl,
         qs: {
-          file: "gfs.t" + roundHours(moment(targetMoment).hour(), 6) + "z.pgrb2.1p00.f000",
-          lev_10_m_above_ground: "on",
-          lev_surface: "on",
-          var_TMP: "on",
+          // file=gfswave.t00z.arctic.9km.f000.grib2
+          file:
+            "gfswave.t" + roundHours(moment(targetMoment).hour(), 6) + "z.global.0p16.f000.grib2",
+          // all_var=on&all_lev=on&toplat=90&leftlon=0&rightlon=360&bottomlat=-90
+          // all_var: "on",
+          // all_lev: "on",
+          // var_TMP: "on",
           var_UGRD: "on",
           var_VGRD: "on",
           leftlon: 0,
           rightlon: 360,
           toplat: 90,
           bottomlat: -90,
-          dir: "/gfs." + `${stamp.slice(0, 8)}/${stamp.slice(-2)}` + "/atmos",
+          dir: "/gfs." + `${stamp.slice(0, 8)}/${stamp.slice(-2)}` + "/wave/gridded",
         },
-      })
+      };
+    }
+
+    request
+      .get(reqOpt)
       .on("error", function (err) {
         // console.log(err);
         runQuery(moment(targetMoment).subtract(6, "hours"));
       })
       .on("response", function (response) {
-        console.log("dir", "/gfs." + `${stamp.slice(0, 8)}/${stamp.slice(-2)}` + "/atmos");
-        console.log(
-          "file",
-          "gfs.t" + roundHours(moment(targetMoment).hour(), 6) + "z.pgrb2.1p00.f000"
-        );
+        // console.log("dir", reqOpt.qs.dir);
+        // console.log("file", reqOpt.qs.file);
 
         console.log("response " + response.statusCode + " | " + stamp);
 
@@ -176,14 +229,14 @@ function getGribData(targetMoment) {
           runQuery(moment(targetMoment).subtract(6, "hours"));
         } else {
           // don't rewrite stamps
-          if (!checkPath("json-data/" + stamp + ".json", false)) {
+          if (!checkPath(`json-data/${type}/${stamp}.json`, false)) {
             console.log("piping " + stamp);
 
             // mk sure we've got somewhere to put output
-            checkPath("grib-data", true);
+            checkPath(`grib-data/${type}`, true);
 
             // pipe the file, resolve the valid time stamp
-            var file = fs.createWriteStream("grib-data/" + stamp + ".f000");
+            var file = fs.createWriteStream(`grib-data/${type}/${stamp}.f000`);
             response.pipe(file);
             file.on("finish", function () {
               file.close();
@@ -201,19 +254,17 @@ function getGribData(targetMoment) {
   return deferred.promise;
 }
 
-function convertGribToJson(stamp, targetMoment) {
+function convertGribToJson(stamp, targetMoment, type) {
   // mk sure we've got somewhere to put output
-  checkPath("json-data", true);
+  checkPath(`json-data/${type}`, true);
 
   var exec = require("child_process").exec,
     child;
 
+  const output = `json-data/${type}/${stamp}.json`;
+  const src = `grib-data/${type}/${stamp}.f000`;
   child = exec(
-    "converter/bin/grib2json --data --output json-data/" +
-      stamp +
-      ".json --names --compact grib-data/" +
-      stamp +
-      ".f000",
+    `converter/bin/grib2json --data --output ${output} --names --compact ${src}`,
     { maxBuffer: 500 * 1024 },
     function (error, stdout, stderr) {
       if (error) {
@@ -222,15 +273,15 @@ function convertGribToJson(stamp, targetMoment) {
         console.log("converted..");
 
         // don't keep raw grib data
-        exec("rm grib-data/*");
+        exec(`rm grib-data/${type}/*`);
 
         // if we don't have older stamp, try and harvest one
         var prevMoment = moment(targetMoment).subtract(6, "hours");
         var prevStamp = prevMoment.format("YYYYMMDD") + roundHours(prevMoment.hour(), 6);
 
-        if (!checkPath("json-data/" + prevStamp + ".json", false)) {
+        if (!checkPath(`json-data/${type}/${prevStamp}.json`, false)) {
           console.log("attempting to harvest older data " + stamp);
-          run(prevMoment);
+          run(prevMoment, type);
         } else {
           console.log("got older, no need to harvest further");
         }
@@ -275,4 +326,5 @@ function checkPath(path, mkdir) {
 }
 
 // init harvest
-run(moment.utc());
+run(moment.utc(), "wind");
+run(moment.utc(), "wave");
