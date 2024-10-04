@@ -61,31 +61,31 @@ app.get("/wind/latest", cors(corsOptions), function (req, res) {
   sendLatest(moment().utc());
 });
 
-// app.get("/wave/latest", cors(corsOptions), function (req, res) {
-//   /**
-//    * Find and return the latest available 6 hourly pre-parsed JSON data
-//    *
-//    * @param targetMoment {Object} UTC moment
-//    */
-//   function sendLatest(targetMoment) {
-//     var stamp =
-//       moment(targetMoment).format("YYYYMMDD") + roundHours(moment(targetMoment).hour(), 6);
-//     var fileName = __dirname + "/json-data/wave/" + stamp + ".json";
+app.get("/wave/latest", cors(corsOptions), function (req, res) {
+  /**
+   * Find and return the latest available 6 hourly pre-parsed JSON data
+   *
+   * @param targetMoment {Object} UTC moment
+   */
+  function sendLatest(targetMoment) {
+    var stamp =
+      moment(targetMoment).format("YYYYMMDD") + roundHours(moment(targetMoment).hour(), 6);
+    var fileName = __dirname + "/json-data/wave/" + stamp + ".json";
 
-//     console.log("GET /latest");
-//     console.log("filename >>>>>", fileName);
+    console.log("GET /latest");
+    console.log("filename >>>>>", fileName);
 
-//     res.setHeader("Content-Type", "application/json");
-//     res.sendFile(fileName, {}, function (err) {
-//       if (err) {
-//         console.log(stamp + " doesnt exist yet, trying previous interval..");
-//         sendLatest(moment(targetMoment).subtract(6, "hours"));
-//       }
-//     });
-//   }
+    res.setHeader("Content-Type", "application/json");
+    res.sendFile(fileName, {}, function (err) {
+      if (err) {
+        console.log(stamp + " doesnt exist yet, trying previous interval..");
+        sendLatest(moment(targetMoment).subtract(6, "hours"));
+      }
+    });
+  }
 
-//   sendLatest(moment().utc());
-// });
+  sendLatest(moment().utc());
+});
 
 // app.get("/nearest", cors(corsOptions), function (req, res, next) {
 //   var time = req.query.timeIso;
